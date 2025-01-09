@@ -1,0 +1,251 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Manager</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+            overflow-x: hidden; /* Prevent horizontal overflow */
+            overflow-y: auto; /* Enable vertical scrolling */
+        }
+        .container {
+            width: 100%; /* Allow the container to take up full width */
+            max-width: 800px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        label {
+            font-weight: bold;
+        }
+        input, textarea, select, button {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #4cae4c;
+        }
+        .recipe-list {
+            margin-top: 20px;
+        }
+        .recipe-card {
+            background: #f9f9f9;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .recipe-card h3 {
+            margin: 0 0 10px;
+        }
+        .action-buttons {
+            margin-top: 10px;
+            display: flex; /* Align buttons horizontally */
+            gap: 15px; /* Add space between buttons */
+        }
+        .confirmation-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        .dialog-buttons {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .dialog-buttons button {
+            padding: 10px 20px;
+        }
+
+        /* Textarea Resize & Scrolling */
+        textarea {
+            resize: vertical;
+            overflow-y: auto;
+        }
+
+        /* Media Query for small screens */
+        @media (max-width: 600px) {
+            .container {
+                width: 90%; /* Adjust width on small screens */
+                margin: 10px;
+            }
+            button {
+                font-size: 14px; /* Reduce button size for small screens */
+            }
+            textarea, input, select {
+                font-size: 14px; /* Adjust form element font sizes */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Recipe Manager</h1>
+        <form id="recipeForm">
+            <label for="title">Recipe Title</label>
+            <input type="text" id="title" name="title" placeholder="Enter recipe title" required="">
+
+            <label for="ingredients">Ingredients (comma-separated)</label>
+            <textarea id="ingredients" name="ingredients" rows="4" placeholder="Enter ingredients" required=""></textarea>
+
+            <label for="steps">Steps</label>
+            <textarea id="steps" name="steps" rows="4" placeholder="Enter cooking steps" required=""></textarea>
+
+            <label for="category">Category</label>
+            <select id="category" name="category" required="">
+                <option value="">Select a category</option>
+                <option value="Breakfast">Breakfast</option>
+                <option value="Lunch">Lunch</option>
+                <option value="Dinner">Dinner</option>
+                <option value="Dessert">Dessert</option>
+            </select>
+
+            <button type="submit">Save Recipe</button>
+        </form>
+
+        <div class="recipe-list" id="recipeList"><h2>Saved Recipes</h2></div>
+    </div>
+
+    <!-- Confirmation Dialog -->
+    <div class="overlay" id="overlay" style="display: none;"></div>
+    <div class="confirmation-dialog" id="confirmationDialog" style="display: none;">
+        <p>Are you sure to delete your marvelous recipe?</p>
+        <div class="dialog-buttons">
+            <button id="confirmDelete">Yes</button>
+            <button id="cancelDelete">Nevermind</button>
+        </div>
+    </div>
+
+    <script>
+        const recipeForm = document.getElementById('recipeForm');
+        const recipeList = document.getElementById('recipeList');
+        const overlay = document.getElementById('overlay');
+        const confirmationDialog = document.getElementById('confirmationDialog');
+        const confirmDelete = document.getElementById('confirmDelete');
+        const cancelDelete = document.getElementById('cancelDelete');
+
+        let recipeToDeleteIndex = null;
+
+        // Load recipes from localStorage
+        function loadRecipes() {
+            const recipes = JSON.parse(localStorage.getItem('recipes')) || [];
+            recipeList.innerHTML = '<h2>Saved Recipes</h2>';
+            recipes.forEach((recipe, index) => {
+                const recipeCard = document.createElement('div');
+                recipeCard.className = 'recipe-card';
+                recipeCard.innerHTML = `
+                    <h3>${recipe.title}</h3>
+                    <p><strong>Category:</strong> ${recipe.category}</p>
+                    <p><strong>Ingredients:</strong> ${recipe.ingredients}</p>
+                    <p><strong>Steps:</strong> ${recipe.steps}</p>
+                    <div class="action-buttons">
+                        <button onclick="shareRecipe(${index})">Share</button>
+                        <button onclick="openDeleteDialog(${index})" style="background-color: #d9534f;">Delete</button>
+                    </div>
+                `;
+                recipeList.appendChild(recipeCard);
+            });
+        }
+
+        // Save recipe to localStorage
+        recipeForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const title = document.getElementById('title').value;
+            const ingredients = document.getElementById('ingredients').value;
+            const steps = document.getElementById('steps').value;
+            const category = document.getElementById('category').value;
+
+            const recipe = { title, ingredients, steps, category };
+            const recipes = JSON.parse(localStorage.getItem('recipes')) || [];
+            recipes.push(recipe);
+            localStorage.setItem('recipes', JSON.stringify(recipes));
+
+            recipeForm.reset();
+            loadRecipes();
+        });
+
+        // Delete recipe
+        function openDeleteDialog(index) {
+            recipeToDeleteIndex = index;
+            overlay.style.display = 'block';
+            confirmationDialog.style.display = 'block';
+        }
+
+        confirmDelete.addEventListener('click', () => {
+            const recipes = JSON.parse(localStorage.getItem('recipes')) || [];
+            recipes.splice(recipeToDeleteIndex, 1);
+            localStorage.setItem('recipes', JSON.stringify(recipes));
+            recipeToDeleteIndex = null;
+            overlay.style.display = 'none';
+            confirmationDialog.style.display = 'none';
+            loadRecipes();
+        });
+
+        cancelDelete.addEventListener('click', () => {
+            recipeToDeleteIndex = null;
+            overlay.style.display = 'none';
+            confirmationDialog.style.display = 'none';
+        });
+
+        // Share recipe as a .txt file
+        function shareRecipe(index) {
+            const recipes = JSON.parse(localStorage.getItem('recipes')) || [];
+            const recipe = recipes[index];
+            const recipeText = `
+                Recipe Title: ${recipe.title}
+                Category: ${recipe.category}
+                Ingredients: ${recipe.ingredients}
+                Steps: ${recipe.steps}
+            `;
+            const blob = new Blob([recipeText], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${recipe.title.replace(/ /g, '_')}.txt`;
+            link.click();
+        }
+
+        // Initial load
+        loadRecipes();
+    </script>
+</body>
+</html>
